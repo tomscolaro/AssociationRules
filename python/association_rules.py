@@ -21,7 +21,7 @@ class association_rules:
         else:
             self.lift = self.lift(self.confidence)
     
-        self.rules = self.lift
+        self.rules = self.lift[['antecedent','consequent','antecedent_support',  'consequent_support', 'confidence', 'lift']]
         
         
     def get_rules(self):
@@ -99,32 +99,31 @@ class association_rules:
             res = res[['support', 'products']].reset_index(drop=True)
 
         return res.reset_index(drop=True)
-
     
     def confidence(self, df, min_threshold=0):
-        consq = list()
-        confidence_df = pd.DataFrame()
+        confidence_df = pd.DataFrame([])
 
         for i in df['products']:
             
             consq_df = df[df['products'].str.contains(i)]
-            
-            antec_support = df[df['products'] == i]['support'].values[0]
-            
+            antec_support = df[df['products'] == i]['support'].values[0]            
             consq_df['antecedent'] = i
-
-            consq_df['confidence'] = consq_df['support']/antec_support
-
-            consq_df['consequent'] = consq_df['products'].str.replace(i, '').str.lstrip(', ').str.rstrip(', ')
-
+            consq_df['consequent'] = consq_df['products'].str.replace(i, '').str.lstrip(', ').str.rstrip(', ').str.replace(', ,', ', ')
             confidence_df = confidence_df.append(consq_df, ignore_index=True)
 
-            
-        confidence_df = confidence_df[confidence_df['confidence' ]>= min_threshold]
+        confidence_df.columns= ['confidence_numerator', 'xUy', 'antecedent', 'consequent']
+        res = confidence_df.merge(df, left_on ='antecedent', right_on ='products' )
+        res = res[[ 'confidence_numerator', 'antecedent', 'support', 'consequent']]
+        res.columns = ['confidence_numerator', 'antecedent','antecedent_support', 'consequent']
+        res = res.merge(df, left_on ='consequent', right_on ='products' )
+        res = res[[  'antecedent','consequent', 'antecedent_support',  'support', 'confidence_numerator']]
+        res.columns = ['antecedent','consequent','antecedent_support',  'consequent_support', 'confidence_numerator']
+        
+    
+        res = res.loc[res['consequent'] != '',]
+        res['confidence'] = res['confidence_numerator']/res['antecedent_support']
 
-        res = df.merge(confidence_df, left_on ='products', right_on ='antecedent' )
-        res = res.loc[res['consequent'] != '' ,('antecedent', 'consequent', 'Support_x', 'Support_y', 'confidence')] #['antecedent', 'consequent', 'Support_x', 'confidence']
-        res.columns = ['antecendent', 'consequent' , 'antecendent_support', 'consequent_support', 'confidence']
+        res = res[res['confidence']>= min_threshold]
 
         return res.reset_index(drop=True)
 
@@ -132,5 +131,5 @@ class association_rules:
     def lift(self, df, min_threshold = 0):
         
         lift_df = df.copy()
-        lift_df['lift'] = lift_df['confidence']/(lift_df['antecendent_support']*lift_df['consequent_support']) 
+        lift_df['lift'] = lift_df['confidence_numerator']/(lift_df['antecedent_support']*lift_df['consequent_support']) 
         return lift_df.reset_index(drop=True) 
